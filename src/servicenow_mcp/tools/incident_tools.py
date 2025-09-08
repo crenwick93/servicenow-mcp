@@ -90,6 +90,14 @@ class IncidentResponse(BaseModel):
     message: str = Field(..., description="Message describing the result")
     incident_id: Optional[str] = Field(None, description="ID of the affected incident")
     incident_number: Optional[str] = Field(None, description="Number of the affected incident")
+class SearchIncidentsParams(BaseModel):
+    """Parameters for keyword-based incident search (any-match)."""
+
+    keywords: List[str] = Field(..., description="Keywords to search in short_description/description")
+    limit: int = Field(10, description="Maximum number of incidents to return")
+    offset: int = Field(0, description="Offset for pagination")
+    state: Optional[str] = Field(None, description="Optional filter by state")
+
 
 
 def create_incident(
@@ -620,4 +628,80 @@ def get_incident_by_number(
         return {
             "success": False,
             "message": f"Failed to fetch incident: {str(e)}",
+        }
+
+
+def search_incidents(
+    config: ServerConfig,
+    auth_manager: AuthManager,
+    params: SearchIncidentsParams,
+) -> dict:
+    """
+    Search incidents by any of the provided keywords in short_description or description.
+    Returns compact fields to minimize LLM context usage.
+    """
+    api_url = f"{config.api_url}/table/incident"
+
+    if not params.keywords:
+        return {"success": True, "message": "No keywords provided", "incidents": []}
+
+    or_parts: List[str] = []
+    for kw in params.keywords:
+        if not kw:
+            continue
+        or_parts.append(f"short_descriptionLIKE{kw}")
+        or_parts.append(f"descriptionLIKE{kw}")
+
+    if not or_parts:
+        return {"success": True, "message": "No valid keywords", "incidents": []}
+
+    sysparm_query = "^OR".join(or_parts)
+    if params.state:
+        sysparm_query = f"state={params.state}^{sysparm_query}"
+
+    query_params = {
+        "sysparm_query": sysparm_query,
+        "sysparm_limit": params.limit,
+        "sysparm_offset": params.offset,
+        "sysparm_display_value": "true",
+        "sysparm_exclude_reference_link": "true",
+        "sysparm_fields": "sys_id,number,short_description,state,priority,sys_created_on,sys_updated_on",
+    }
+
+    try:
+        response = requests.get(
+            api_url,
+            params=query_params,
+            headers=auth_manager.get_headers(),
+            timeout=config.timeout,
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        incidents = []
+        for rec in data.get("result", []):
+            incidents.append(
+                {
+                    "sys_id": rec.get("sys_id"),
+                    "number": rec.get("number"),
+                    "short_description": rec.get("short_description"),
+                    "state": rec.get("state"),
+                    "priority": rec.get("priority"),
+                    "created_on": rec.get("sys_created_on"),
+                    "updated_on": rec.get("sys_updated_on"),
+                }
+            )
+
+        return {
+            "success": True,
+            "message": f"Found {len(incidents)} incidents matching keywords",
+            "incidents": incidents,
+        }
+
+    except requests.RequestException as e:
+        logger.error(f"Failed to search incidents: {e}")
+        return {
+            "success": False,
+            "message": f"Failed to search incidents: {str(e)}",
+            "incidents": [],
         }

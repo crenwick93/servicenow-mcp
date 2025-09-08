@@ -5,7 +5,7 @@ This module provides tools for managing knowledge bases, categories, and article
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 import requests
 from pydantic import BaseModel, Field
@@ -132,6 +132,15 @@ class ListCategoriesParams(BaseModel):
     offset: int = Field(0, description="Offset for pagination")
     active: Optional[bool] = Field(None, description="Filter by active status")
     query: Optional[str] = Field(None, description="Search query for categories")
+
+
+class SearchArticlesParams(BaseModel):
+    """Parameters for keyword-based knowledge article search (any-match)."""
+
+    keywords: List[str] = Field(..., description="Keywords to search in title/short_description/text")
+    limit: int = Field(10, description="Maximum number of articles to return")
+    offset: int = Field(0, description="Offset for pagination")
+    knowledge_base: Optional[str] = Field(None, description="Optional filter by knowledge base sys_id")
 
 
 def create_knowledge_base(
@@ -971,4 +980,78 @@ def list_categories(
             "count": 0,
             "limit": params.limit,
             "offset": params.offset,
-        } 
+        }
+
+
+def search_articles(
+    config: ServerConfig,
+    auth_manager: AuthManager,
+    params: SearchArticlesParams,
+) -> Dict[str, Any]:
+    """
+    Search knowledge articles by any of the provided keywords across title/short_description/text.
+    Returns compact fields to minimize LLM context usage.
+    """
+    api_url = f"{config.api_url}/table/kb_knowledge"
+
+    if not params.keywords:
+        return {"success": True, "message": "No keywords provided", "articles": []}
+
+    or_parts: List[str] = []
+    for kw in params.keywords:
+        if not kw:
+            continue
+        or_parts.append(f"short_descriptionLIKE{kw}")
+        or_parts.append(f"textLIKE{kw}")
+
+    if not or_parts:
+        return {"success": True, "message": "No valid keywords", "articles": []}
+
+    sysparm_query = "^OR".join(or_parts)
+    if params.knowledge_base:
+        sysparm_query = f"kb_knowledge_base.sys_id={params.knowledge_base}^{sysparm_query}"
+
+    query_params = {
+        "sysparm_query": sysparm_query,
+        "sysparm_limit": params.limit,
+        "sysparm_offset": params.offset,
+        "sysparm_display_value": "true",
+        "sysparm_exclude_reference_link": "true",
+        "sysparm_fields": "sys_id,short_description,workflow_state,sys_created_on,sys_updated_on",
+    }
+
+    try:
+        response = requests.get(
+            api_url,
+            params=query_params,
+            headers=auth_manager.get_headers(),
+            timeout=config.timeout,
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        articles = []
+        for rec in data.get("result", []):
+            articles.append(
+                {
+                    "id": rec.get("sys_id"),
+                    "title": rec.get("short_description"),
+                    "workflow_state": rec.get("workflow_state"),
+                    "created": rec.get("sys_created_on"),
+                    "updated": rec.get("sys_updated_on"),
+                }
+            )
+
+        return {
+            "success": True,
+            "message": f"Found {len(articles)} articles matching keywords",
+            "articles": articles,
+        }
+
+    except requests.RequestException as e:
+        logger.error(f"Failed to search articles: {e}")
+        return {
+            "success": False,
+            "message": f"Failed to search articles: {str(e)}",
+            "articles": [],
+        }

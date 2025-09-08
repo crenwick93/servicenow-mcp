@@ -46,6 +46,9 @@ from servicenow_mcp.tools.incident_tools import (
     resolve_incident,
     update_incident,
 )
+from servicenow_mcp.tools.incident_tools import (
+    get_incident_by_number,
+)
 from servicenow_mcp.tools.knowledge_base import (
     create_article,
     create_category,
@@ -112,6 +115,12 @@ from servicenow_mcp.tools.project_tools import (
     update_project,
     list_projects,
 )
+# Problems (read-only)
+from servicenow_mcp.tools.problem_tools import (
+    list_problems,
+    get_problem_by_number,
+    search_problems,
+)
 # from servicenow_mcp.tools.problem_tools import create_problem, update_problem
 # from servicenow_mcp.tools.request_tools import create_request, update_request
 
@@ -122,6 +131,7 @@ __all__ = [
     "add_comment",
     "resolve_incident",
     "list_incidents",
+    "get_incident_by_number",
     
     # Catalog tools
     "list_catalog_items",
@@ -220,6 +230,11 @@ __all__ = [
     "create_project",
     "update_project",
     "list_projects",
+
+    # Problem tools (read-only)
+    "list_problems",
+    "get_problem_by_number",
+    "search_problems",
 
     
     # Future tools

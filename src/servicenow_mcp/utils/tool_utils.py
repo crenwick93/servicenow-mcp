@@ -138,6 +138,34 @@ from servicenow_mcp.tools.incident_tools import (
 from servicenow_mcp.tools.incident_tools import (
     update_incident as update_incident_tool,
 )
+from servicenow_mcp.tools.incident_tools import (
+    SearchIncidentsParams,
+)
+from servicenow_mcp.tools.incident_tools import (
+    search_incidents as search_incidents_tool,
+)
+from servicenow_mcp.tools.incident_tools import (
+    GetIncidentByNumberParams,
+)
+from servicenow_mcp.tools.incident_tools import (
+    get_incident_by_number as get_incident_by_number_tool,
+)
+from servicenow_mcp.tools.problem_tools import (
+    ListProblemsParams,
+    GetProblemByNumberParams,
+)
+from servicenow_mcp.tools.problem_tools import (
+    list_problems as list_problems_tool,
+)
+from servicenow_mcp.tools.problem_tools import (
+    get_problem_by_number as get_problem_by_number_tool,
+)
+from servicenow_mcp.tools.problem_tools import (
+    SearchProblemsParams,
+)
+from servicenow_mcp.tools.problem_tools import (
+    search_problems as search_problems_tool,
+)
 from servicenow_mcp.tools.knowledge_base import (
     CreateArticleParams,
     CreateKnowledgeBaseParams,
@@ -146,6 +174,7 @@ from servicenow_mcp.tools.knowledge_base import (
     ListKnowledgeBasesParams,
     PublishArticleParams,
     UpdateArticleParams,
+    SearchArticlesParams,
 )
 from servicenow_mcp.tools.knowledge_base import (
     CreateCategoryParams as CreateKBCategoryParams,  # Aliased
@@ -175,6 +204,9 @@ from servicenow_mcp.tools.knowledge_base import (
 )
 from servicenow_mcp.tools.knowledge_base import (
     update_article as update_article_tool,
+)
+from servicenow_mcp.tools.knowledge_base import (
+    search_articles as search_articles_tool,
 )
 from servicenow_mcp.tools.script_include_tools import (
     CreateScriptIncludeParams,
@@ -395,6 +427,42 @@ def get_tool_definitions(
             str,  # Expects JSON string
             "List incidents from ServiceNow",
             "json",  # Tool returns list/dict, needs JSON dump
+        ),
+        "get_incident_by_number": (
+            get_incident_by_number_tool,
+            GetIncidentByNumberParams,
+            str,  # Expects JSON string
+            "Get a specific incident by number",
+            "json",  # Tool returns list/dict
+        ),
+        "search_incidents": (
+            search_incidents_tool,
+            SearchIncidentsParams,
+            str,  # Expects JSON string
+            "Search incidents by keywords across short_description and description",
+            "json",
+        ),
+        # Problem Management (read-only)
+        "list_problems": (
+            list_problems_tool,
+            ListProblemsParams,
+            str,  # Expects JSON string
+            "List problem records from ServiceNow",
+            "json",
+        ),
+        "get_problem_by_number": (
+            get_problem_by_number_tool,
+            GetProblemByNumberParams,
+            str,  # Expects JSON string
+            "Get a specific problem by number",
+            "json",
+        ),
+        "search_problems": (
+            search_problems_tool,
+            SearchProblemsParams,
+            str,  # Expects JSON string
+            "Search problems by keywords across short_description and description",
+            "json",
         ),
         # Catalog Tools
         "list_catalog_items": (
@@ -760,6 +828,13 @@ def get_tool_definitions(
             Dict[str, Any],  # Expects dict
             "Get a specific knowledge article by ID",
             "raw_dict",  # Tool returns raw dict
+        ),
+        "search_articles": (
+            search_articles_tool,
+            SearchArticlesParams,
+            str,  # Expects JSON string
+            "Search knowledge articles by keywords across title/short_description/text",
+            "json",
         ),
         # Use the passed-in implementations for aliased KB category tools
         "list_categories": (

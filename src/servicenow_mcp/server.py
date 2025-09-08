@@ -261,6 +261,71 @@ class ServiceNowMCP:
 
         # Validate and parse arguments using the Pydantic model
         try:
+            # Normalize common client payload shapes before validation
+            # 1) Convert list of {name,value} pairs to a dict
+            if isinstance(arguments, list):
+                try:
+                    kv_dict = {}
+                    for item in arguments:
+                        if isinstance(item, dict) and "name" in item:
+                            kv_dict[item["name"]] = item.get("value")
+                    if kv_dict:
+                        arguments = kv_dict
+                except Exception:
+                    pass
+
+            # 2) Common aliases for IDs
+            if isinstance(arguments, dict):
+                if name == "get_incident_by_number" and "number" in arguments and "incident_number" not in arguments:
+                    arguments["incident_number"] = arguments.pop("number")
+                if name == "get_problem_by_number" and "number" in arguments and "problem_number" not in arguments:
+                    arguments["problem_number"] = arguments.pop("number")
+                if name == "get_article" and "id" in arguments and "article_id" not in arguments:
+                    arguments["article_id"] = arguments.pop("id")
+
+                # 3) Accept singular keyword/query and coerce to keywords list for search_* tools
+                if name.startswith("search_"):
+                    if "keyword" in arguments and "keywords" not in arguments:
+                        arguments["keywords"] = arguments.pop("keyword")
+                    if "query" in arguments and "keywords" not in arguments:
+                        arguments["keywords"] = arguments.pop("query")
+
+                # 4) Try to coerce common numeric fields if provided as strings
+                for numeric_key in ("limit", "offset"):
+                    if numeric_key in arguments and isinstance(arguments[numeric_key], str):
+                        if arguments[numeric_key].isdigit():
+                            try:
+                                arguments[numeric_key] = int(arguments[numeric_key])
+                            except Exception:
+                                pass
+
+                # 5) Existing keywords coercion
+                if "keywords" in arguments:
+                    kw = arguments["keywords"]
+                    if isinstance(kw, str):
+                        try:
+                            parsed = json.loads(kw)
+                            if isinstance(parsed, list):
+                                arguments["keywords"] = parsed
+                            else:
+                                arguments["keywords"] = [kw]
+                        except Exception:
+                            try:
+                                import ast
+
+                                parsed = ast.literal_eval(kw)
+                                if isinstance(parsed, list):
+                                    arguments["keywords"] = parsed
+                                else:
+                                    arguments["keywords"] = [kw]
+                            except Exception:
+                                if "," in kw:
+                                    arguments["keywords"] = [s.strip() for s in kw.split(",") if s.strip()]
+                                else:
+                                    arguments["keywords"] = [kw]
+                    elif isinstance(kw, list):
+                        arguments["keywords"] = [str(x) for x in kw]
+
             params = params_model(**arguments)
             logger.debug(f"Parsed arguments for tool '{name}': {params}")
         except ValidationError as e:
